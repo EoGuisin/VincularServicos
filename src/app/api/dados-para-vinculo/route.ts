@@ -1,38 +1,44 @@
 // 📁 src/app/api/dados-para-vinculo/route.ts
 
-import { Pool } from "pg";
+import { supabaseAdmin } from "@/lib/supabase"; // Importa o cliente Supabase
 import { NextResponse } from "next/server";
 
-// Definindo a "forma" dos nossos dados para o TypeScript
+// As interfaces continuam as mesmas, ótima prática!
 interface Profissional {
-  id_trinks: string; // ou number, dependendo do seu banco
+  id_trinks: string;
   profissional: string;
 }
 
 interface Servico {
-  id_trinks: string; // ou number
+  id_trinks: string;
   servico: string;
 }
 
-const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-});
-
 export async function GET(): Promise<NextResponse> {
   try {
-    // Usamos genéricos (<>) para dizer ao pg que o resultado da query será um array de Profissional/Servico
+    // O cliente Supabase permite consultas paralelas com Promise.all
     const [profissionaisResult, servicosResult] = await Promise.all([
-      pool.query<Profissional>(
-        "SELECT id_trinks, profissional FROM profissionais ORDER BY profissional"
-      ),
-      pool.query<Servico>(
-        "SELECT id_trinks, servico FROM servicos ORDER BY servico"
-      ),
+      supabaseAdmin
+        .from("profissionais")
+        .select("id_trinks, profissional")
+        .order("profissional"),
+      supabaseAdmin
+        .from("servicos")
+        .select("id_trinks, servico")
+        .order("servico"),
     ]);
 
+    // Verifica se houve erro nas consultas
+    if (profissionaisResult.error) {
+      throw profissionaisResult.error;
+    }
+    if (servicosResult.error) {
+      throw servicosResult.error;
+    }
+
     const data = {
-      profissionais: profissionaisResult.rows,
-      servicos: servicosResult.rows,
+      profissionais: profissionaisResult.data as Profissional[],
+      servicos: servicosResult.data as Servico[],
     };
 
     return NextResponse.json(data);
